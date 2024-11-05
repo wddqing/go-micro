@@ -511,10 +511,20 @@ func (s *rpcServer) Subscribe(sb Subscriber) error {
 }
 
 func (s *rpcServer) Register() error {
+	// 20240423 1.7.2变动 由于Options里面使用读锁，这里先加锁再调用Options会使用两个读锁，如果在获取完第一个读锁的时候，有其他的协程获取了写锁，那么再也无法获取Options里面的读锁，导致死锁，RPCServer会卡住
+	// 后续看看4.9.0之后的版本对这里是否优化，4.10.0对整个rpcserver进行了重构，需要谨慎升级，因此这里先临时处理掉
+	//s.RLock()
+	//rsvc := s.rsvc
+	//config := s.Options()
+	//s.RUnlock()
+
+	// ======================== 20240423 1.7.2变动
 	s.RLock()
 	rsvc := s.rsvc
-	config := s.Options()
 	s.RUnlock()
+	config := s.Options()
+	// ========================
+
 	logger := s.opts.Logger
 	regFunc := func(service *registry.Service) error {
 		// create registry options
@@ -713,9 +723,13 @@ func (s *rpcServer) Deregister() error {
 	var err error
 	var advt, host, port string
 	logger := s.opts.Logger
-	s.RLock()
+	// 同Register函数的变动
+	//s.RLock()
+	//config := s.Options()
+	//s.RUnlock()
+	// ======================== 20240423 1.7.2变动
 	config := s.Options()
-	s.RUnlock()
+	// ========================
 
 	// check the advertise address first
 	// if it exists then use it, otherwise
